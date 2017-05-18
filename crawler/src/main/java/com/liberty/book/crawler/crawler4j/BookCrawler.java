@@ -114,6 +114,10 @@ public class BookCrawler extends WebCrawler {
             File file = new File(storageFolder.getAbsolutePath()+picturePath);
             File parentDir = file.getParentFile();
 
+            if (!parentDir.exists()) {
+                parentDir.mkdirs();
+            }
+
             Files.write(page.getContentData(), file);
             String id = parentDir.getName();
 
