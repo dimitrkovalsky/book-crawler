@@ -49,7 +49,7 @@ public class CommonDaoAppCfg {
     public DataSource dataSource(){
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setDriverClassName("com.mysql.jdbc.Driver");
-        dataSource.setUrl("jdbc:mysql://localhost:3306/flibusta");
+        dataSource.setUrl("jdbc:mysql://localhost:3306/neurolib");
         dataSource.setUsername( "root" );
         dataSource.setPassword( "Admin111" );
         return dataSource;

@@ -6,11 +6,7 @@ import edu.uci.ics.crawler4j.crawler.CrawlController;
 import edu.uci.ics.crawler4j.fetcher.PageFetcher;
 import edu.uci.ics.crawler4j.robotstxt.RobotstxtConfig;
 import edu.uci.ics.crawler4j.robotstxt.RobotstxtServer;
-import org.apache.http.Header;
-import org.apache.http.message.BasicHeader;
 import org.springframework.context.annotation.Configuration;
-
-import java.util.ArrayList;
 @Configuration
 
 public class App {
@@ -18,7 +14,7 @@ public class App {
 
 	public static void main(String[] args) throws Exception{
 
-		String crawlStorageFolder = "C:/Users/user/IdeaProjects/book-crawler/dump";
+		String crawlStorageFolder = "D:\\dump";
 		int numberOfCrawlers = 100;
 
 		CrawlConfig config = new CrawlConfig();
