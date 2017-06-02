@@ -45,9 +45,9 @@ public class ImageCrawlController {
             return;
         }
 */
-        String rootFolder = "C:/Users/user/IdeaProjects/book-crawler/dump/img";
+        String rootFolder = "D:\\dump\\img";
         int numberOfCrawlers = 50;
-        String storageFolder = "C:/Users/user/IdeaProjects/book-crawler/dump";
+        String storageFolder = "D:\\dump";
 
         CrawlConfig config = new CrawlConfig();
 
