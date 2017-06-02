@@ -28,9 +28,9 @@ public class App {
 		config.setIncludeBinaryContentInCrawling(true);
 		config.setMaxConnectionsPerHost(1000);
 		config.setMaxTotalConnections(10000);
-		config.setConnectionTimeout(1000);
-		config.setPolitenessDelay(1);
-		config.setThreadShutdownDelaySeconds(1);
+		config.setConnectionTimeout(100000);
+		config.setPolitenessDelay(10);
+		config.setThreadShutdownDelaySeconds(10);
 
 		PageFetcher pageFetcher = new PageFetcher(config);
 		RobotstxtConfig robotstxtConfig = new RobotstxtConfig();
@@ -43,17 +43,14 @@ public class App {
          * URLs that are fetched and then the crawler starts following links
          * which are found in these pages
          */
+		for (int i = 0; i <200000 ; i++) {
+			controller.addSeed("http://flisland.net/a/"+i);
+		}
+		for (int i = 0; i <600000 ; i++) {
+			controller.addSeed("http://flisland.net/b/"+i);
+		}
+		System.out.println("start");
 
-		controller.addSeed("http://flisland.net/Aa");
-		controller.addSeed("http://flisland.net/Bb");
-		controller.addSeed("http://flisland.net/V");
-		controller.addSeed("http://flisland.net/Gg");
-		controller.addSeed("http://flisland.net/D");
-		controller.addSeed("http://flisland.net/E");
-		controller.addSeed("http://flisland.net/Zh");
-		controller.addSeed("http://flisland.net/Z");
-		controller.addSeed("http://flisland.net/I");
-		controller.addSeed("http://flisland.net/");
 
 		//controller.addSeed("http://flibusta.is/O");
 

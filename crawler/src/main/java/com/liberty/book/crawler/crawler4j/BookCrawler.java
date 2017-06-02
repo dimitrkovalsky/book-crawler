@@ -44,7 +44,7 @@ public class BookCrawler extends WebCrawler {
     }
 
 
-    private static final Pattern imgPatterns = Pattern.compile(".*(\\.(bmp|gif|jpe?g|png|tiff?))$");
+    private static final Pattern imgPatterns = Pattern.compile(".*(/i/|/ib/|/ia/).*");
 
     private static Pattern FILE_ENDING_EXCLUSION_PATTERN = Pattern.compile(".*(\\.(" +
             "css|js" +
@@ -79,7 +79,9 @@ public class BookCrawler extends WebCrawler {
                 &&!url.getURL().contains("polka")
                 &&!url.getURL().contains("blog")
                 &&!url.getURL().contains("rec")
-                &&!url.getURL().contains("/mobi")
+                &&!url.getURL().endsWith("/mobi")
+                &&!url.getURL().contains("/details/")
+                &&!url.getURL().contains("/delalias/")
                 &&!url.getURL().contains("/epub")
                 &&!url.getURL().contains("/fb2")
                 &&!url.getURL().contains("mobile")
@@ -102,7 +104,7 @@ public class BookCrawler extends WebCrawler {
         // We are only interested in processing images which are bigger than 1k
         if (!imgPatterns.matcher(url).matches() ||
                 !((page.getParseData() instanceof BinaryParseData) ||
-                        (page.getContentData().length < (1 * 1024)))) {
+                        (page.getContentData().length < (1 * 256)))) {
             return;
         }
 
