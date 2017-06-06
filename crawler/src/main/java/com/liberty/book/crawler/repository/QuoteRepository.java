@@ -4,6 +4,8 @@ import com.liberty.book.crawler.entity.QuoteEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 /**
  * User: Dimitr
  * Date: 24.04.2017
@@ -11,5 +13,5 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface QuoteRepository extends JpaRepository<QuoteEntity, Long> {
-
+    List<QuoteEntity> findAllByQuoteAuthorId(Integer authorId);
 }

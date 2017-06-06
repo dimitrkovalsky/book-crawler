@@ -18,6 +18,7 @@ public class QuotesRunner {
     public static void main(String[] args) {
         ApplicationContext ctx = new AnnotationConfigApplicationContext(AppConfig.class);
         QuotesCrawler crawler = ctx.getBean(QuotesCrawler.class);
-        crawler.crawl();
+//        crawler.crawl();
+        crawler.mapToFlibustaAuthors();
     }
 }

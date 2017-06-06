@@ -1,15 +1,20 @@
 package com.liberty.book.crawler.quotes;
 
 import com.liberty.book.crawler.common.RequestHelper;
+import com.liberty.book.crawler.entity.AuthorEntity;
 import com.liberty.book.crawler.entity.QuoteAuthorEntity;
 import com.liberty.book.crawler.entity.QuoteEntity;
+import com.liberty.book.crawler.repository.AuthorRepository;
 import com.liberty.book.crawler.repository.QuoteAuthorRepository;
 import com.liberty.book.crawler.repository.QuoteRepository;
+import org.apache.commons.collections4.CollectionUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -32,7 +37,10 @@ public class QuotesCrawler {
     private static volatile List<QuoteEntity> allQuotes = new ArrayList<>();
 
     @Autowired
-    private QuoteAuthorRepository authorRepository;
+    private QuoteAuthorRepository quoteAuthorRepository;
+
+    @Autowired
+    private AuthorRepository authorRepository;
 
     @Autowired
     private QuoteRepository quoteRepository;
@@ -75,7 +83,7 @@ public class QuotesCrawler {
             quotes = crawlQuotes(quoteIds, authorId, authorName);
             System.out.println("Crawled : " + quotes.size() + " quotes for " + l.authorName);
             QuoteAuthorEntity authorEntity = new QuoteAuthorEntity(authorId, authorName, bio, null);
-            authorRepository.save(authorEntity);
+            quoteAuthorRepository.save(authorEntity);
             quoteRepository.save(quotes);
             allAuthors.add(authorEntity);
             allQuotes.addAll(quotes);
@@ -116,6 +124,57 @@ public class QuotesCrawler {
 
         });
         return map;
+    }
+
+    public void mapToFlibustaAuthors() {
+        List<QuoteAuthorEntity> all = quoteAuthorRepository.findAll();
+        System.out.println("Found : " + all.size() + " authors");
+        AtomicInteger found = new AtomicInteger(1);
+        AtomicInteger notFound = new AtomicInteger(1);
+        all.forEach(a -> {
+            String[] split = a.getAuthorName().split(" ");
+            Page<AuthorEntity> result;
+            if (split.length == 1) {
+                String lastName = split[0].toLowerCase();
+                result = authorRepository.getAllByFirstNameOrMiddleNameOrLastNameContainingOrderByLastName(
+                        new PageRequest(0, 10), null, null, lastName);
+            } else if (split.length == 2) {
+                String firstName = split[0].toLowerCase();
+                String lastName = split[1].toLowerCase();
+                result = authorRepository.getAllByFirstNameOrMiddleNameOrLastNameContainingOrderByLastName(
+                        new PageRequest(0, 10), firstName, null, lastName);
+            } else {
+                String firstName = split[0].toLowerCase();
+                String lastName = split[split.length - 1].toLowerCase();
+                result = authorRepository.getAllByFirstNameOrMiddleNameOrLastNameContainingOrderByLastName(
+                        new PageRequest(0, 10), firstName, null, lastName);
+            }
+            System.out.println("Found : " + result.getContent().size() + " results for : " + a.getAuthorName());
+            if (CollectionUtils.isEmpty(result.getContent())) {
+                System.err.println("Not found authors for : " + a.getAuthorName());
+                notFound.incrementAndGet();
+            } else {
+                AuthorEntity authorEntity = result.getContent().get(0);
+                a.setFlibustaId(authorEntity.getAuthorId());
+                quoteAuthorRepository.save(a);
+                System.out.println("Selected " + authorEntity.getLastName()
+                        + " with id : " + authorEntity.getAuthorId() + " for : " + a.getAuthorName());
+                found.incrementAndGet();
+                updateQuotes(a, authorEntity);
+            }
+            System.out.println("Processed : " + (found.get() + notFound.get()) + " / " + all.size());
+            System.out.println("Found : " + (found.get() * 100 / notFound.get()) + " percents");
+        });
+    }
+
+    private void updateQuotes(QuoteAuthorEntity quoteAuthorEntity, AuthorEntity authorEntity) {
+        List<QuoteEntity> quotes = quoteRepository.findAllByQuoteAuthorId(quoteAuthorEntity.getId());
+        quotes = quotes.stream().map(a -> {
+            a.setFlibustaAuthorId(authorEntity.getAuthorId());
+            return a;
+        }).collect(Collectors.toList());
+        System.out.println("Found " + quotes.size() + " quotes for " + quoteAuthorEntity.getAuthorName());
+        quoteRepository.save(quotes);
     }
 
 
