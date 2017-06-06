@@ -1,21 +1,32 @@
 package com.liberty.book.crawler.common;
 
+import com.liberty.book.crawler.entity.AuthorBorndateEntity;
+
+import java.util.Calendar;
+
 /**
  * Created by user on 04.06.2017.
  */
 public class DayBornObject {
+    public static void main(String[] args) {
+        DayBornObject object = new DayBornObject();
+        object.setYear(1960);
+        object.setMonth(1);
+        object.setDay(1);
+        System.out.println(object.mapToEntity().getBornDate());
+    }
     private Integer day;
     private Integer month;
     private Integer year;
     private String name;
     private String link;
-    private Integer id;
+    private Long id;
 
-    public Integer getId() {
+    public Long getId() {
         return id;
     }
 
-    public void setId(Integer id) {
+    public void setId(Long id) {
         this.id = id;
     }
 
@@ -59,6 +70,16 @@ public class DayBornObject {
         this.link = link;
     }
 
+
+    public AuthorBorndateEntity mapToEntity(){
+        AuthorBorndateEntity entity = new AuthorBorndateEntity();
+        Calendar bornDate = Calendar.getInstance();
+        bornDate.set(this.getYear(),this.getMonth()-1,this.getDay());
+        entity.setBornDate(bornDate.getTimeInMillis()/1000);
+        entity.setAuthorName(this.getName());
+        entity.setLivelibAuthorId(this.getId());
+        return entity;
+    }
     @Override
     public String toString() {
         return "DayBornObject{" +
