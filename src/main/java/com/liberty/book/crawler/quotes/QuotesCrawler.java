@@ -13,8 +13,6 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -133,28 +131,25 @@ public class QuotesCrawler {
         AtomicInteger notFound = new AtomicInteger(1);
         all.forEach(a -> {
             String[] split = a.getAuthorName().split(" ");
-            Page<AuthorEntity> result;
+            List<AuthorEntity> result;
             if (split.length == 1) {
                 String lastName = split[0].toLowerCase();
-                result = authorRepository.getAllByFirstNameOrMiddleNameOrLastNameContainingOrderByLastName(
-                        new PageRequest(0, 10), null, null, lastName);
+                result = authorRepository.getByLastName(lastName);
             } else if (split.length == 2) {
                 String firstName = split[0].toLowerCase();
                 String lastName = split[1].toLowerCase();
-                result = authorRepository.getAllByFirstNameOrMiddleNameOrLastNameContainingOrderByLastName(
-                        new PageRequest(0, 10), firstName, null, lastName);
+                result = authorRepository.getByLastAndFistName(lastName,firstName);
             } else {
                 String firstName = split[0].toLowerCase();
                 String lastName = split[split.length - 1].toLowerCase();
-                result = authorRepository.getAllByFirstNameOrMiddleNameOrLastNameContainingOrderByLastName(
-                        new PageRequest(0, 10), firstName, null, lastName);
+                result = authorRepository.getByLastAndFistName(lastName,firstName);
             }
-            System.out.println("Found : " + result.getContent().size() + " results for : " + a.getAuthorName());
-            if (CollectionUtils.isEmpty(result.getContent())) {
+            System.out.println("Found : " + result.size() + " results for : " + a.getAuthorName());
+            if (CollectionUtils.isEmpty(result)) {
                 System.err.println("Not found authors for : " + a.getAuthorName());
                 notFound.incrementAndGet();
             } else {
-                AuthorEntity authorEntity = result.getContent().get(0);
+                AuthorEntity authorEntity = result.get(0);
                 a.setFlibustaId(authorEntity.getAuthorId());
                 quoteAuthorRepository.save(a);
                 System.out.println("Selected " + authorEntity.getLastName()

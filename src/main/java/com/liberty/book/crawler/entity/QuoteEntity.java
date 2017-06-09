@@ -1,7 +1,5 @@
 package com.liberty.book.crawler.entity;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -37,29 +35,4 @@ public class QuoteEntity {
     @Convert(converter = MapConverter.class)
     private Map<Integer, String> tags;
 
-    public static class MapConverter implements AttributeConverter<Map<Integer, String>, String> {
-        private ObjectMapper mapper = new ObjectMapper();
-
-        @Override
-        public String convertToDatabaseColumn(Map<Integer, String> map) {
-            try {
-
-                return mapper.writeValueAsString(map);
-            } catch (Exception e) {
-                System.err.println(e.getMessage());
-                return null;
-            }
-        }
-
-        @Override
-        public Map<Integer, String> convertToEntityAttribute(String json) {
-            try {
-                return (Map<Integer, String>) mapper.readValue(json, new TypeReference<Map<Integer, String>>() {
-                });
-            } catch (Exception e) {
-                System.err.println(e.getMessage());
-                return null;
-            }
-        }
-    }
 }

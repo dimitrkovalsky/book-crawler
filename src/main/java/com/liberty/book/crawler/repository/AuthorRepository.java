@@ -29,4 +29,7 @@ public interface AuthorRepository extends JpaRepository<AuthorEntity, Integer> {
 
     @Query(nativeQuery = true, value = "SELECT * FROM libavtorname WHERE LOWER(LastName) LIKE '%:name%'")
     List<AuthorEntity> getByLastName(@Param("name") String name);
+
+    @Query(nativeQuery = true, value = "SELECT * FROM libavtorname WHERE LOWER(LastName) LIKE '%:lastName%' AND LOWER(FirstName) LIKE '%:firstName%'")
+    List<AuthorEntity> getByLastAndFistName(@Param("lastName") String lastName, @Param("firstName") String firstName);
 }
