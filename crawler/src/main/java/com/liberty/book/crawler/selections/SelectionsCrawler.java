@@ -6,6 +6,7 @@ import com.liberty.book.crawler.repository.*;
 import com.liberty.book.crawler.service.TagService;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -63,6 +64,14 @@ public class SelectionsCrawler {
         else return link;
     }
 
+    private String getNextPageLinkFromElements(Elements elements){
+        String link = elements.select(".i-pager-next").parents().attr("href");
+        if ("".equals(link)||link.contains("/comments/")){
+            return null;
+        }
+        else return link;
+    }
+
     private List<String> parseSelectionsLinkList(Document document){
         List<String> links = new ArrayList<>();
         Elements tags = document.select(".selection").select(".event-title a");
@@ -90,14 +99,16 @@ public class SelectionsCrawler {
             String retrieved = RequestHelper.executeRequestAndGetResult(baseDomain + link);
             Document document = Jsoup.parse(retrieved);
             selectionRepository.save(parseSelectionData(document));
+            Elements container = document.select("div.column-670.subcontainer div.block div.book-container.biglist").parents().select(".pager-ll2015b");
+            String nextPageLink = getNextPageLinkFromElements(container);
             parseSelectionBooks(document);
-            String nextPageLink = getNextPageLink(document);
             while (nextPageLink != null) {
                 System.out.println("Process " + nextPageLink + " page of selection");
                 retrieved = RequestHelper.executeRequestAndGetResult(baseDomain + nextPageLink);
                 document = Jsoup.parse(retrieved);
+                container = document.select("div.column-670.subcontainer div.block div.book-container.biglist").parents().select(".pager-ll2015b");
+                nextPageLink = getNextPageLinkFromElements(container);
                 parseSelectionBooks(document);
-                nextPageLink = getNextPageLink(document);
             }
             LinkEntity entity = new LinkEntity();
             entity.setLink(link);
