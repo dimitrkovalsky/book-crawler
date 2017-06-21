@@ -56,6 +56,13 @@ public class SelectionsCrawler {
             crawlSelections(link);
     }
 
+    public static void main(String[] args) {
+        SelectionsCrawler crawler = new SelectionsCrawler();
+        String retrieved = RequestHelper.executeRequestAndGetResult("https://www.livelib.ru/giveaways/selection/793385-razdachi-knig-izdatelstvo-ipi");
+        Document document = Jsoup.parse(retrieved);
+        System.out.println(crawler.parseGiveawaysData(document));
+    }
+
     private String getNextPageLink(Document document){
         String link = document.select(".i-pager-next").parents().attr("href");
         if ("".equals(link)){
@@ -66,7 +73,8 @@ public class SelectionsCrawler {
 
     private String getNextPageLinkFromElements(Elements elements){
         String link = elements.select(".i-pager-next").parents().attr("href");
-        if ("".equals(link)||link.contains("/comments/")){
+        if ("".equals(link)
+                ||link.contains("/comments/")){
             return null;
         }
         else return link;
@@ -98,7 +106,11 @@ public class SelectionsCrawler {
             System.out.println("Process " + link + " selection");
             String retrieved = RequestHelper.executeRequestAndGetResult(baseDomain + link);
             Document document = Jsoup.parse(retrieved);
-            selectionRepository.save(parseSelectionData(document));
+            if(link.contains("giveaways/")||link.contains("group/")){
+                selectionRepository.save(parseGiveawaysData(document));
+            }else{
+                selectionRepository.save(parseSelectionData(document));
+            }
             Elements container = document.select("div.column-670.subcontainer div.block div.book-container.biglist").parents().select(".pager-ll2015b");
             String nextPageLink = getNextPageLinkFromElements(container);
             parseSelectionBooks(document);
@@ -119,13 +131,40 @@ public class SelectionsCrawler {
         }
     }
 
+    private SelectionEntity parseGiveawaysData(Document document){
+        SelectionEntity selection = new SelectionEntity();
+        String selectionId = document.select("#selection-id").attr("value");
+        selection.setSelectionId(Long.parseLong(selectionId));
+
+        Elements dataContainer = document.select(".column-670.subcontainer");
+        String title = dataContainer.select("div.block > h1").text();
+        if("".equals(title))
+            title = dataContainer.select("div.column-670 > h1").text();
+        selection.setTitle(title);
+        selection.setUserMade(dataContainer.select("span.reader a.action").attr("title"));
+        selection.setCreateTime(dataContainer.select("div.group-actionbar a.post-date").text());
+        selection.setDescription(dataContainer.select(".group-selection-data div.description > p:lt(1)").html());
+        Elements eventActionBar = dataContainer.select("div.event-actionbar");
+        String voteText = eventActionBar.select("div.hand > span").text();
+        if(voteText!=null&&!"".equals(voteText))
+            selection.setVotes(Integer.parseInt(voteText));
+        String likeText = eventActionBar.select("span.count-in-fav").text();
+        if(likeText!=null&&!"".equals(likeText))
+            selection.setLikes(Integer.parseInt(likeText));
+
+        return selection;
+    }
+
     private SelectionEntity parseSelectionData(Document document){
         SelectionEntity selection = new SelectionEntity();
         String selectionId = document.select("#selection-id").attr("value");
         selection.setSelectionId(Long.parseLong(selectionId));
 
         Elements dataContainer = document.select(".column-670.subcontainer");
-        selection.setTitle(dataContainer.select("div.block h1").text());
+        String title = dataContainer.select("div.block > h1").text();
+        if("".equals(title))
+            title = dataContainer.select("div.column-670 > h1").text();
+        selection.setTitle(title);
         selection.setUserMade(dataContainer.select(".event-user-login.wordbreak a").attr("title"));
         selection.setCreateTime(dataContainer.select(".event-user-date span").text());
         selection.setDescription(dataContainer.select(".selection .description").html());
