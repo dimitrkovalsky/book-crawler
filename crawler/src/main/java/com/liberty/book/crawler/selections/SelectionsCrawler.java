@@ -10,6 +10,7 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -193,7 +194,7 @@ public class SelectionsCrawler {
             String bookId = element.attr("id").replace("my-selection-book-list-tr-","");
             selectionBooksEntity.setLivelibBookId(Long.parseLong(bookId));
             selectionBooksEntity.setSelectionId(selectionId);
-            SimpleBookEntity bookEntity = neurolibBookRepository.findFirstByTitle(element.select(".block-book-title").text());
+            SimpleBookEntity bookEntity = neurolibBookRepository.findFirstByTitleAndAndDeletedFalse(element.select(".block-book-title").text());
             selectionBooksEntity.setDescription(element.select(".book-description").before("<p class=\"unnoticeable\"").text());
             String votes = element.select("span.vote.action.action-text").text();
             if(votes!=null&&!"".equals(votes))
@@ -249,6 +250,25 @@ public class SelectionsCrawler {
         } catch(DataIntegrityViolationException e) {
             System.out.println("Object is already exist in database");
         }
+    }
+
+    public void mapToNeurolib(){
+        List<SelectionBooksEntity> allSelectionBook = selectionBookRepository.findAll();
+
+        for(SelectionBooksEntity selectionBooksEntity:allSelectionBook){
+            Long livelibBookId = selectionBooksEntity.getLivelibBookId();
+            System.out.println(selectionBooksEntity);
+            LivelibBookEntity livelibBookEntity= livelibBookRepository.getOne(livelibBookId);
+            if(livelibBookEntity!=null) {
+                String title = livelibBookEntity.getTitle();
+                SimpleBookEntity neurolibBook = neurolibBookRepository.findFirstByTitleAndAndDeletedFalse(title);
+                if(neurolibBook!=null){
+                    selectionBooksEntity.setNeurolibBookId(neurolibBook.getBookId());
+                    selectionBookRepository.save(selectionBooksEntity);
+                }
+            }
+        }
+
     }
 
 }

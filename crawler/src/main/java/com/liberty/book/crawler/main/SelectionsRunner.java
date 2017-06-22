@@ -12,6 +12,7 @@ public class SelectionsRunner {
     public static void main(String[] args) {
         ApplicationContext ctx = new AnnotationConfigApplicationContext(AppConfig.class);
         SelectionsCrawler crawler = ctx.getBean(SelectionsCrawler.class);
-        crawler.crawl();
+       // crawler.crawl();
+        crawler.mapToNeurolib();
     }
 }
