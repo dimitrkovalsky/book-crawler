@@ -1,9 +1,13 @@
 package com.liberty.book.crawler.calendar;
 
+import com.liberty.book.crawler.common.DayBornResponse;
 import com.liberty.book.crawler.common.RequestHelper;
+import com.liberty.book.crawler.common.datamapper.DataMapper;
 import com.liberty.book.crawler.entity.*;
 import com.liberty.book.crawler.repository.*;
 import com.liberty.book.crawler.service.TagService;
+import org.apache.http.NameValuePair;
+import org.apache.http.message.BasicNameValuePair;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
@@ -11,10 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Created by user on 10.06.2017.
@@ -22,7 +23,14 @@ import java.util.Set;
 @Service
 public class CalendarCrawler {
 
+
+    @Autowired
+    private DataMapper mapper;
+
     private String baseDomain = "https://www.livelib.ru/";
+    private Calendar dateToParse = Calendar.getInstance();
+    private Calendar endDate;
+
 
 
     public void crawl() {
@@ -30,18 +38,47 @@ public class CalendarCrawler {
         visitUrlList.add(baseDomain+"service/ff");
         visitUrlList.add(baseDomain+"service/vag");
         RequestHelper.setUrlList(visitUrlList);
-        getAllSelectionsLinks();
-        System.out.println("Fetched  " + linkList.size() + " selections url");
 
-        for (String link : linkList)
-            crawlSelections(link);
+    }
+
+    public void init(){
+        endDate = Calendar.getInstance();
+        endDate.add(Calendar.YEAR,1);
+
     }
 
     public static void main(String[] args) {
-        CalendarCrawler crawler = new CalendarCrawler();
-        String retrieved = RequestHelper.executeRequestAndGetResult("https://www.livelib.ru/giveaways/selection/793385-razdachi-knig-izdatelstvo-ipi");
-        Document document = Jsoup.parse(retrieved);
+
         System.out.println(crawler.parseGiveawaysData(document));
+    }
+
+
+    private String loadAuthorsAtDateAndPage(String date, Integer page){
+        CalendarCrawler crawler = new CalendarCrawler();
+        List<NameValuePair> params = new ArrayList<NameValuePair>();
+        params.add(new BasicNameValuePair("page_no", page.toString()));
+        params.add(new BasicNameValuePair("current_date", date));
+        params.add(new BasicNameValuePair("is_new_design", "ll2015b"));
+        crawler.init();
+        return RequestHelper.executePostRequestAndGetResult("https://www.livelib.ru/author/born",params);
+    }
+
+    private Document loadAllAuthorsAtDate(String date){
+        Integer page = 0;
+        StringBuilder authors = new StringBuilder();
+        Boolean isLastPage = false;
+        while(!isLastPage) {
+            String jsonDocument = loadAuthorsAtDateAndPage(date, page);
+            DayBornResponse response = mapper.mapData(jsonDocument, DayBornResponse.class);
+            authors.append(response.getContent());
+            isLastPage = response.getEndData();
+        }
+        return Jsoup.parse(authors.toString());
+    }
+
+    private void parseAndSaveAuthorsAtDate(String date){
+        Document authors = loadAllAuthorsAtDate(date);
+        
     }
 
     private String getNextPageLink(Document document){
