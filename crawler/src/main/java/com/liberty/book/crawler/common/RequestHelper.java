@@ -33,11 +33,15 @@ public class RequestHelper {
     private static CloseableHttpClient httpClient;
     private static List<String> urlList = new ArrayList<>();
     private static Date nextCookieLoad;
+    private static List<Header> additionHeaders;
 
     public static void setUrlList(List<String> urlList) {
         RequestHelper.urlList = urlList;
     }
 
+    public static void setAdditionalHeaders(List<Header> headers) {
+        RequestHelper.additionHeaders = headers;
+    }
 
 
     public static InputStream executeRequest(String url) {
@@ -156,6 +160,10 @@ public class RequestHelper {
         headers.add(new BasicHeader("Accept-Language","ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4"));
         headers.add(new BasicHeader("User-Agent","User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"));
         headers.add(new BasicHeader("Cache-Control","no-cache"));
+
+        if(additionHeaders!=null){
+            headers.addAll(additionHeaders);
+        }
         Header[] stockArr = new Header[headers.size()];
 
         return headers.toArray(stockArr);

@@ -7,7 +7,9 @@ import com.liberty.book.crawler.entity.*;
 import com.liberty.book.crawler.repository.*;
 import com.liberty.book.crawler.service.TagService;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.http.Header;
 import org.apache.http.NameValuePair;
+import org.apache.http.message.BasicHeader;
 import org.apache.http.message.BasicNameValuePair;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -18,6 +20,7 @@ import org.springframework.stereotype.Service;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -43,11 +46,16 @@ public class CalendarCrawler {
 
 
     public void crawl() {
+        init();
         ArrayList<String> visitUrlList = new ArrayList<>();
         visitUrlList.add(baseDomain+"service/ff");
         visitUrlList.add(baseDomain+"service/vag");
         RequestHelper.setUrlList(visitUrlList);
+        List<Header> headers = new ArrayList<Header>();
+        headers.add(new BasicHeader("X-Requested-With","XMLHttpRequest"));
+        RequestHelper.setAdditionalHeaders(headers);
 
+        parseWholeYear();
     }
 
     public void init(){
@@ -57,19 +65,29 @@ public class CalendarCrawler {
     }
 
     public static void main(String[] args) {
+        String baseDomain = "https://www.livelib.ru/";
+        ArrayList<String> visitUrlList = new ArrayList<>();
+        visitUrlList.add(baseDomain+"service/ff");
+        visitUrlList.add(baseDomain+"service/vag");
+        RequestHelper.setUrlList(visitUrlList);
+        List<Header> headers = new ArrayList<Header>();
+        headers.add(new BasicHeader("X-Requested-With","XMLHttpRequest"));
+        RequestHelper.setAdditionalHeaders(headers);
 
-        System.out.println(crawler.parseGiveawaysData(document));
+        CalendarCrawler crawler = new CalendarCrawler();
+        crawler.init();
+        System.out.println(crawler.loadAuthorsAtDateAndPage("2017-07-16",1));
+
+
     }
 
 
     private String loadAuthorsAtDateAndPage(String date, Integer page){
-        CalendarCrawler crawler = new CalendarCrawler();
         List<NameValuePair> params = new ArrayList<NameValuePair>();
         params.add(new BasicNameValuePair("page_no", page.toString()));
         params.add(new BasicNameValuePair("current_date", date));
         params.add(new BasicNameValuePair("is_new_design", "ll2015b"));
-        crawler.init();
-        return RequestHelper.executePostRequestAndGetResult("https://www.livelib.ru/author/born",params);
+        return RequestHelper.executePostRequestAndGetResult(baseDomain+"author/born",params);
     }
 
     private Document loadAllAuthorsAtDate(String date){
@@ -93,22 +111,39 @@ public class CalendarCrawler {
         Elements authorList = authors.select("div.born-author");
         authorList.forEach(element -> {
             AuthorBorndateEntity entity = new AuthorBorndateEntity();
-            Integer old = Integer.parseInt(element.select("span.born-age-year").attr("title"));
-            Calendar bornDate =(Calendar) dateToParse.clone();
-            bornDate.add(Calendar.YEAR,-old);
-            entity.setBornYear(bornDate.get(Calendar.YEAR));
-            entity.setBornMonth(bornDate.get(Calendar.MONTH));
-            entity.setBornDay(bornDate.get(Calendar.DAY_OF_MONTH));
-
+            String oldString = element.select("span.born-age-year").attr("title");
+            if("".equals(oldString)){
+                entity.setBornMonth(dateToParse.get(Calendar.MONTH) + 1);
+                entity.setBornDay(dateToParse.get(Calendar.DAY_OF_MONTH));
+            }else {
+                Integer old = Integer.parseInt(oldString);
+                Calendar bornDate = (Calendar) dateToParse.clone();
+                bornDate.add(Calendar.YEAR, - old);
+                entity.setBornYear(bornDate.get(Calendar.YEAR));
+                entity.setBornMonth(bornDate.get(Calendar.MONTH) + 1);
+                entity.setBornDay(bornDate.get(Calendar.DAY_OF_MONTH));
+            }
             entity.setAuthorName(element.select("div.born-author-title .born-author-td a").text());
-            entity.setLivelibAuthorId(Long.parseLong(element.select("div.born-author-title .born-author-td a").attr("href")));
+            entity.setLivelibAuthorId(Long.parseLong(element.select("div.born-author-title .born-author-td a").attr("href").replace("/author/","")));
             findAndSetFlibustaAuthor(entity);
             repository.save(entity);
         });
         
     }
 
-    private Long findAndSetFlibustaAuthor(AuthorBorndateEntity entity) {
+    private void parseWholeYear(){
+        while(dateToParse.before(endDate)){
+            parseAndSaveAuthorsAtDate(dateToParse);
+            dateToParse.add(Calendar.HOUR,24);
+            try {
+                TimeUnit.SECONDS.sleep(5);
+
+            }catch (InterruptedException e){}
+        }
+    }
+
+
+    private void findAndSetFlibustaAuthor(AuthorBorndateEntity entity) {
             String[] split = entity.getAuthorName().split(" ");
             List<AuthorEntity> result;
             if (split.length == 1) {

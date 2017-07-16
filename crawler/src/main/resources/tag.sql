@@ -80,3 +80,18 @@ CREATE TABLE `links` (
 )
   ENGINE = InnoDB
   DEFAULT CHARSET = utf8;
+
+CREATE TABLE `author_born_date` (
+  `id`           INT(11)      NOT NULL AUTO_INCREMENT,
+  `ll_author_id` INT(11)      NOT NULL,
+  `nl_author_id` INT(11)      ,
+  `born_year`    INT(11)      ,
+  `born_month`   INT(11)      NOT NULL,
+  `born_day`     INT(11)      NOT NULL,
+  `author_name`  VARCHAR(512) NOT NULL,
+
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `id_UNIQUE` (`id`)
+)
+  ENGINE = InnoDB
+  DEFAULT CHARSET = utf8;
