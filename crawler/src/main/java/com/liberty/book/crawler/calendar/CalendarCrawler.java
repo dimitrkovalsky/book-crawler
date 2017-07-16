@@ -6,6 +6,7 @@ import com.liberty.book.crawler.common.datamapper.DataMapper;
 import com.liberty.book.crawler.entity.*;
 import com.liberty.book.crawler.repository.*;
 import com.liberty.book.crawler.service.TagService;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.http.NameValuePair;
 import org.apache.http.message.BasicNameValuePair;
 import org.jsoup.Jsoup;
@@ -15,7 +16,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
+import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Created by user on 10.06.2017.
@@ -26,6 +29,12 @@ public class CalendarCrawler {
 
     @Autowired
     private DataMapper mapper;
+
+    @Autowired
+    private AuthorBorndateRepository repository;
+
+    @Autowired
+    private AuthorRepository authorRepository;
 
     private String baseDomain = "https://www.livelib.ru/";
     private Calendar dateToParse = Calendar.getInstance();
@@ -64,7 +73,7 @@ public class CalendarCrawler {
     }
 
     private Document loadAllAuthorsAtDate(String date){
-        Integer page = 0;
+        Integer page = 1;
         StringBuilder authors = new StringBuilder();
         Boolean isLastPage = false;
         while(!isLastPage) {
@@ -72,220 +81,60 @@ public class CalendarCrawler {
             DayBornResponse response = mapper.mapData(jsonDocument, DayBornResponse.class);
             authors.append(response.getContent());
             isLastPage = response.getEndData();
+            page++;
         }
         return Jsoup.parse(authors.toString());
     }
 
-    private void parseAndSaveAuthorsAtDate(String date){
+    private void parseAndSaveAuthorsAtDate(Calendar calendar){
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
+        String date = format.format(calendar.getTime());
         Document authors = loadAllAuthorsAtDate(date);
+        Elements authorList = authors.select("div.born-author");
+        authorList.forEach(element -> {
+            AuthorBorndateEntity entity = new AuthorBorndateEntity();
+            Integer old = Integer.parseInt(element.select("span.born-age-year").attr("title"));
+            Calendar bornDate =(Calendar) dateToParse.clone();
+            bornDate.add(Calendar.YEAR,-old);
+            entity.setBornYear(bornDate.get(Calendar.YEAR));
+            entity.setBornMonth(bornDate.get(Calendar.MONTH));
+            entity.setBornDay(bornDate.get(Calendar.DAY_OF_MONTH));
+
+            entity.setAuthorName(element.select("div.born-author-title .born-author-td a").text());
+            entity.setLivelibAuthorId(Long.parseLong(element.select("div.born-author-title .born-author-td a").attr("href")));
+            findAndSetFlibustaAuthor(entity);
+            repository.save(entity);
+        });
         
     }
 
-    private String getNextPageLink(Document document){
-        String link = document.select(".i-pager-next").parents().attr("href");
-        if ("".equals(link)){
-            return null;
-        }
-        else return link;
-    }
-
-    private String getNextPageLinkFromElements(Elements elements){
-        String link = elements.select(".i-pager-next").parents().attr("href");
-        if ("".equals(link)
-                ||link.contains("/comments/")){
-            return null;
-        }
-        else return link;
-    }
-
-    private List<String> parseSelectionsLinkList(Document document){
-        List<String> links = new ArrayList<>();
-        Elements tags = document.select(".selection").select(".event-title a");
-        tags.forEach(element -> links.add(element.attr("href")));
-        System.out.println("Fetched links:"+links.size());
-        return links;
-    }
-
-    private void getAllSelectionsLinks(){
-        String retrieved = RequestHelper.executeRequestAndGetResult(baseDomain+"/selections/top/");
-        Document document = Jsoup.parse(retrieved);
-        String nextPageLink = getNextPageLink(document);
-        while (nextPageLink!=null){
-            retrieved = RequestHelper.executeRequestAndGetResult(baseDomain+nextPageLink);
-            document = Jsoup.parse(retrieved);
-            linkList.addAll(parseSelectionsLinkList(document));
-            nextPageLink = getNextPageLink(document);
-        }
-        System.out.println("This is last page");
-    }
-
-    public void crawlSelections(String link){
-        if(links.getFirstByLinkEquals(link)==null) {
-            System.out.println("Process " + link + " selection");
-            String retrieved = RequestHelper.executeRequestAndGetResult(baseDomain + link);
-            Document document = Jsoup.parse(retrieved);
-            if(link.contains("giveaways/")||link.contains("group/")){
-                selectionRepository.save(parseGiveawaysData(document));
-            }else{
-                selectionRepository.save(parseSelectionData(document));
+    private Long findAndSetFlibustaAuthor(AuthorBorndateEntity entity) {
+            String[] split = entity.getAuthorName().split(" ");
+            List<AuthorEntity> result;
+            if (split.length == 1) {
+                String lastName = split[0].toLowerCase();
+                result = authorRepository.getByLastName(lastName);
+            } else if (split.length == 2) {
+                String firstName = split[0].toLowerCase();
+                String lastName = split[1].toLowerCase();
+                result = authorRepository.getByLastAndFistName(lastName,firstName);
+            } else {
+                String firstName = split[0].toLowerCase();
+                String lastName = split[split.length - 1].toLowerCase();
+                result = authorRepository.getByLastAndFistName(lastName,firstName);
             }
-            Elements container = document.select("div.column-670.subcontainer div.block div.book-container.biglist").parents().select(".pager-ll2015b");
-            String nextPageLink = getNextPageLinkFromElements(container);
-            parseSelectionBooks(document);
-            while (nextPageLink != null) {
-                System.out.println("Process " + nextPageLink + " page of selection");
-                retrieved = RequestHelper.executeRequestAndGetResult(baseDomain + nextPageLink);
-                document = Jsoup.parse(retrieved);
-                container = document.select("div.column-670.subcontainer div.block div.book-container.biglist").parents().select(".pager-ll2015b");
-                nextPageLink = getNextPageLinkFromElements(container);
-                parseSelectionBooks(document);
+            System.out.println("Found : " + result.size() + " results for : " + entity.getAuthorName());
+            if (CollectionUtils.isEmpty(result)) {
+                System.err.println("Not found authors for : " + entity.getAuthorName());
+            } else {
+                AuthorEntity authorEntity = result.get(0);
+                entity.setNeurolibAuthorId((long)authorEntity.getAuthorId());
+                System.out.println("Selected " + authorEntity.getLastName()
+                        + " with id : " + authorEntity.getAuthorId() + " for : " + entity.getAuthorName());
             }
-            LinkEntity entity = new LinkEntity();
-            entity.setLink(link);
-            links.save(entity);
-            System.out.println("Selection crawled");
-        }else{
-            System.out.println("Link" + link + " already processed");
-        }
-    }
-
-    private SelectionEntity parseGiveawaysData(Document document){
-        SelectionEntity selection = new SelectionEntity();
-        String selectionId = document.select("#selection-id").attr("value");
-        selection.setSelectionId(Long.parseLong(selectionId));
-
-        Elements dataContainer = document.select(".column-670.subcontainer");
-        String title = dataContainer.select("div.block > h1").text();
-        if("".equals(title))
-            title = dataContainer.select("div.column-670 > h1").text();
-        selection.setTitle(title);
-        selection.setUserMade(dataContainer.select("span.reader a.action").attr("title"));
-        selection.setCreateTime(dataContainer.select("div.group-actionbar a.post-date").text());
-        selection.setDescription(dataContainer.select(".group-selection-data div.description > p:lt(1)").html());
-        Elements eventActionBar = dataContainer.select("div.event-actionbar");
-        String voteText = eventActionBar.select("div.hand > span").text();
-        if(voteText!=null&&!"".equals(voteText))
-            selection.setVotes(Integer.parseInt(voteText));
-        String likeText = eventActionBar.select("span.count-in-fav").text();
-        if(likeText!=null&&!"".equals(likeText))
-            selection.setLikes(Integer.parseInt(likeText));
-
-        return selection;
-    }
-
-    private SelectionEntity parseSelectionData(Document document){
-        SelectionEntity selection = new SelectionEntity();
-        String selectionId = document.select("#selection-id").attr("value");
-        selection.setSelectionId(Long.parseLong(selectionId));
-
-        Elements dataContainer = document.select(".column-670.subcontainer");
-        String title = dataContainer.select("div.block > h1").text();
-        if("".equals(title))
-            title = dataContainer.select("div.column-670 > h1").text();
-        selection.setTitle(title);
-        selection.setUserMade(dataContainer.select(".event-user-login.wordbreak a").attr("title"));
-        selection.setCreateTime(dataContainer.select(".event-user-date span").text());
-        selection.setDescription(dataContainer.select(".selection .description").html());
-        Elements eventActionBar = dataContainer.select(".separator.selection-row .block-border .event-actionbar");
-        String voteText = eventActionBar.select("span.vote.action.action-text").text();
-        if(voteText!=null&&!"".equals(voteText))
-            selection.setVotes(Integer.parseInt(voteText));
-        String likeText = eventActionBar.select("span.count-in-fav").text();
-        if(likeText!=null&&!"".equals(likeText))
-            selection.setLikes(Integer.parseInt(likeText));
-
-        Elements tagsLinks = dataContainer.select(".event-tags a");
-        List<String> tags = new ArrayList<>();
-
-        tagsLinks.forEach(element -> {
-            tags.add(element.text());
-        });
-        tagService.tagSelection(selection.getSelectionId(),tags);
-        return selection;
-    }
-
-    private List<SelectionBooksEntity> parseSelectionBookData(Elements bookElements,Long selectionId){
-        List<SelectionBooksEntity> selectionBooks = new ArrayList<>();
-        bookElements.forEach(element -> {
-            SelectionBooksEntity selectionBooksEntity = new SelectionBooksEntity();
-            String bookId = element.attr("id").replace("my-selection-book-list-tr-","");
-            selectionBooksEntity.setLivelibBookId(Long.parseLong(bookId));
-            selectionBooksEntity.setSelectionId(selectionId);
-            SimpleBookEntity bookEntity = neurolibBookRepository.findFirstByTitleAndAndDeletedFalse(element.select(".block-book-title").text());
-            selectionBooksEntity.setDescription(element.select(".book-description").before("<p class=\"unnoticeable\"").text());
-            String votes = element.select("span.vote.action.action-text").text();
-            if(votes!=null&&!"".equals(votes))
-                selectionBooksEntity.setVotes(Integer.parseInt(votes));
-            if(bookEntity!=null)
-                selectionBooksEntity.setNeurolibBookId(bookEntity.getBookId());
-            selectionBooks.add(selectionBooksEntity);
-
-        });
-        return selectionBooks;
 
     }
 
-    private List<LivelibBookEntity> parseBookData(Elements bookElements){
-        List<LivelibBookEntity> selectionBooksData = new ArrayList<>();
-        bookElements.forEach(element -> {
-            LivelibBookEntity bookEntity = new LivelibBookEntity();
-            String bookId = element.attr("id").replace("my-selection-book-list-tr-","");
-            bookEntity.setBookId(Long.parseLong(bookId));
-            String authorId = element.select("a.block-book-author").attr("href").replace("/author/","").split("-")[0];
-            bookEntity.setTitle(element.select("a.block-book-title").text());
-            if(authorId!=null&&!"".equals(authorId))
-                bookEntity.setAuthorId(Long.parseLong(authorId));
-            bookEntity.setAuthorNames(element.select("a.block-book-author").text());
-            bookEntity.setCover(element.select("span.boocover img").attr("src"));
-            String rating = element.select("span.rating-book span").first().text();
-            bookEntity.setRating(Float.parseFloat(rating));
 
-            Elements tagsLinks = element.select("p.taglist a");
-            List<String> tags = new ArrayList<>();
-
-            tagsLinks.forEach(tagElements -> {
-                tags.add(tagElements.text());
-            });
-            tagService.tagBook(bookEntity.getBookId(),tags);
-
-            selectionBooksData.add(bookEntity);
-        });
-        return selectionBooksData;
-    }
-
-    private void parseSelectionBooks(Document document){
-        String selectionIdString = document.select("#selection-id").attr("value");
-        if("".equals(selectionIdString)){
-            System.out.println(document.html());
-        }
-        Long selectionId = Long.parseLong(selectionIdString);
-        Elements dataContainer = document.select(".selebook-wrapper");
-
-        try {
-            selectionBookRepository.save(parseSelectionBookData(dataContainer, selectionId));
-            livelibBookRepository.save(parseBookData(dataContainer));
-        } catch(DataIntegrityViolationException e) {
-            System.out.println("Object is already exist in database");
-        }
-    }
-
-    public void mapToNeurolib(){
-        List<SelectionBooksEntity> allSelectionBook = selectionBookRepository.findAll();
-
-        for(SelectionBooksEntity selectionBooksEntity:allSelectionBook){
-            Long livelibBookId = selectionBooksEntity.getLivelibBookId();
-            System.out.println(selectionBooksEntity);
-            LivelibBookEntity livelibBookEntity= livelibBookRepository.getOne(livelibBookId);
-            if(livelibBookEntity!=null) {
-                String title = livelibBookEntity.getTitle();
-                SimpleBookEntity neurolibBook = neurolibBookRepository.findFirstByTitleAndAndDeletedFalse(title);
-                if(neurolibBook!=null){
-                    selectionBooksEntity.setNeurolibBookId(neurolibBook.getBookId());
-                    selectionBookRepository.save(selectionBooksEntity);
-                }
-            }
-        }
-
-    }
 
 }
