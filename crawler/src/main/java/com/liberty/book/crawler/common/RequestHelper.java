@@ -5,8 +5,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
+import org.apache.http.NameValuePair;
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -51,6 +54,22 @@ public class RequestHelper {
             request.setHeaders(getBaseHeaders());
             HttpResponse response = httpClient.execute(request);
 
+            HttpEntity responseEntity = response.getEntity();
+            getCookiesFrom(url);
+            return responseEntity.getContent();
+        } catch (Exception e) {
+            log.error(null, e);
+        }
+        return null;
+    }
+
+    public static InputStream executePostRequest(String url, List<NameValuePair> params) {
+        try {
+            prepareClient();
+            HttpPost request = new HttpPost(url);
+            request.setHeaders(getBaseHeaders());
+            request.setEntity(new UrlEncodedFormEntity(params));
+            HttpResponse response = httpClient.execute(request);
             HttpEntity responseEntity = response.getEntity();
             getCookiesFrom(url);
             return responseEntity.getContent();
