@@ -19,6 +19,7 @@ public class CalendarRunner {
     public static void main(String[] args) {
         ApplicationContext ctx = new AnnotationConfigApplicationContext(AppConfig.class);
         CalendarCrawler crawler = ctx.getBean(CalendarCrawler.class);
-        crawler.crawl();
+       // crawler.crawl();
+        crawler.loadSynonymToDatabase();
     }
 }

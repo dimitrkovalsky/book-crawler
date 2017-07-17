@@ -5,7 +5,6 @@ import com.liberty.book.crawler.common.RequestHelper;
 import com.liberty.book.crawler.common.datamapper.DataMapper;
 import com.liberty.book.crawler.entity.*;
 import com.liberty.book.crawler.repository.*;
-import com.liberty.book.crawler.service.TagService;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.http.Header;
 import org.apache.http.NameValuePair;
@@ -15,13 +14,14 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.StringReader;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Created by user on 10.06.2017.
@@ -38,6 +38,9 @@ public class CalendarCrawler {
 
     @Autowired
     private AuthorRepository authorRepository;
+
+    @Autowired
+    private SynonymNameRepository synonymNameRepository;
 
     private String baseDomain = "https://www.livelib.ru/";
     private Calendar dateToParse = Calendar.getInstance();
@@ -170,6 +173,52 @@ public class CalendarCrawler {
 
     }
 
+    private String loadSynonymNames(){
+        return RequestHelper.executeRequestAndGetResult("https://raw.githubusercontent.com/zhuharev/synonym_name.txt/master/synonym_name.txt");
+    }
+
+    private List<String> parseLines(String text){
+        long start = System.currentTimeMillis();
+        List<String> result = new ArrayList<>();
+        try (BufferedReader reader = new BufferedReader(new StringReader(text))) {
+            String line = reader.readLine();
+            while (line != null) {
+                result.add(line);
+                line = reader.readLine();
+            }
+        } catch (IOException exc) {
+            // quit
+        }
+        return result;
+    }
+
+    public void loadSynonymToDatabase(){
+        String synonymNames = loadSynonymNames();
+        synonymNames = replaceDashToComma(synonymNames);
+        List<String>nameLines = parseLines(synonymNames);
+        Integer nameNumber = 1;
+        for(String names : nameLines){
+            String[] nameArray = names.split(",");
+            for(String name:nameArray){
+                String cleanName = clearName(name);
+                SynonymNameEntity synonymNameEntity = new SynonymNameEntity();
+                synonymNameEntity.setName(cleanName);
+                synonymNameEntity.setNameId((long)nameNumber);
+                synonymNameRepository.save(synonymNameEntity);
+            }
+            nameNumber++;
+            System.out.println(names);
+        }
+
+    }
+
+    private String replaceDashToComma(String text){
+        return text.replace(" - ",", ");
+    }
+
+    private String clearName(String name){
+        return name.replace(" ","");
+    }
 
 
 }

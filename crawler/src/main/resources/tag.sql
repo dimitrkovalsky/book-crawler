@@ -95,3 +95,14 @@ CREATE TABLE `author_born_date` (
 )
   ENGINE = InnoDB
   DEFAULT CHARSET = utf8;
+
+CREATE TABLE `synonym_names` (
+  `id`           INT(11)      NOT NULL AUTO_INCREMENT,
+  `name_id`      INT(11)      NOT NULL,
+  `name`  VARCHAR(512) NOT NULL,
+
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `id_UNIQUE` (`id`)
+)
+  ENGINE = InnoDB
+  DEFAULT CHARSET = utf8;
