@@ -1,16 +1,14 @@
 package com.liberty.book.crawler.common;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.NameValuePair;
+import org.apache.http.*;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicHeader;
+import org.apache.http.params.CoreProtocolPNames;
 import org.apache.http.util.EntityUtils;
 
 import java.io.*;
@@ -65,11 +63,27 @@ public class RequestHelper {
             prepareClient();
             HttpPost request = new HttpPost(url);
             request.setHeaders(getBaseHeaders());
-            request.setEntity(new UrlEncodedFormEntity(params));
+            request.setEntity(new UrlEncodedFormEntity(params,"UTF-8"));
             HttpResponse response = httpClient.execute(request);
             HttpEntity responseEntity = response.getEntity();
             getCookiesFrom(url);
             return responseEntity.getContent();
+        } catch (Exception e) {
+            log.error(null, e);
+        }
+        return null;
+    }
+
+    public static HttpEntity executePostRequestEntity(String url, List<NameValuePair> params) {
+        try {
+            prepareClient();
+            HttpPost request = new HttpPost(url);
+            //request.setHeaders(getBaseHeaders());
+            request.setEntity(new UrlEncodedFormEntity(params,"UTF-8"));
+            HttpResponse response = httpClient.execute(request);
+            HttpEntity responseEntity = response.getEntity();
+            getCookiesFrom(url);
+            return responseEntity;
         } catch (Exception e) {
             log.error(null, e);
         }
@@ -87,6 +101,9 @@ public class RequestHelper {
     public static String executePostRequestAndGetResult(String url,List<NameValuePair> params) {
         return readResult(executePostRequest(url,params));
     }
+    public static String executePostRequestAndGetResultGoogle(String url,List<NameValuePair> params) {
+        return readResult(executePostRequestEntity(url,params));
+    }
 
     public static String readResult(InputStream inputStream) {
         try {
@@ -100,6 +117,16 @@ public class RequestHelper {
             log.error("Content unavailable for : " + inputStream);
             return "";
         }
+    }
+
+    public static String readResult(HttpEntity entity) {
+        String response="";
+        try{
+            response = EntityUtils.toString(entity);
+        }catch (IOException e){}
+
+        return response;
+
     }
 
     public static void saveToFile(String fileName, String data) {
@@ -125,7 +152,7 @@ public class RequestHelper {
 
     private static void prepareClient(){
         if (httpClient==null){
-            httpClient = HttpClients.createSystem();
+            httpClient = HttpClients.createMinimal();
         }
     }
 

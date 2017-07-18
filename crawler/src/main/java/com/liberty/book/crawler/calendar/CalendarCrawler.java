@@ -19,9 +19,12 @@ import org.springframework.stereotype.Service;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Created by user on 10.06.2017.
@@ -68,20 +71,6 @@ public class CalendarCrawler {
     }
 
     public static void main(String[] args) {
-        String baseDomain = "https://www.livelib.ru/";
-        ArrayList<String> visitUrlList = new ArrayList<>();
-        visitUrlList.add(baseDomain+"service/ff");
-        visitUrlList.add(baseDomain+"service/vag");
-        RequestHelper.setUrlList(visitUrlList);
-        List<Header> headers = new ArrayList<Header>();
-        headers.add(new BasicHeader("X-Requested-With","XMLHttpRequest"));
-        RequestHelper.setAdditionalHeaders(headers);
-
-        CalendarCrawler crawler = new CalendarCrawler();
-        crawler.init();
-        System.out.println(crawler.loadAuthorsAtDateAndPage("2017-07-16",1));
-
-
     }
 
 
@@ -170,7 +159,90 @@ public class CalendarCrawler {
                 System.out.println("Selected " + authorEntity.getLastName()
                         + " with id : " + authorEntity.getAuthorId() + " for : " + entity.getAuthorName());
             }
+    }
 
+    private void findAndSetFlibustaAuthorWithSynonym(AuthorBorndateEntity entity) {
+        String[] split = entity.getAuthorName().split(" ");
+        List<AuthorEntity> result;
+        if (split.length == 1) {
+            String lastName = split[0].toLowerCase();
+            result = authorRepository.getByLastName(lastName);
+        } else if (split.length == 2) {
+            String firstName = split[0].toLowerCase();
+            String lastName = split[1].toLowerCase();
+            result = authorRepository.getByLastAndFistName(lastName,firstName);
+            if(CollectionUtils.isEmpty(result)){
+                List<String> names = findSynonyms(firstName);
+                for (String name : names){
+                    result = authorRepository.getByLastAndFistName(lastName,name);
+                    if(!CollectionUtils.isEmpty(result)){
+                        break;
+                    }
+                }
+            }
+        } else {
+            String firstName = split[0].toLowerCase();
+            String lastName = split[split.length - 1].toLowerCase();
+            result = authorRepository.getByLastAndFistName(lastName,firstName);
+            if(CollectionUtils.isEmpty(result)){
+                List<String> names = findSynonyms(firstName);
+                for (String name : names){
+                    result = authorRepository.getByLastAndFistName(lastName,name);
+                    if(!CollectionUtils.isEmpty(result)){
+                        break;
+                    }
+                }
+            }
+        }
+        System.out.println("Found : " + result.size() + " results for : " + entity.getAuthorName());
+        if (CollectionUtils.isEmpty(result)) {
+            System.err.println("Not found authors for : " + entity.getAuthorName());
+        } else {
+            AuthorEntity authorEntity = result.get(0);
+            entity.setNeurolibAuthorId((long)authorEntity.getAuthorId());
+            System.out.println("Selected " + authorEntity.getLastName()
+                    + " with id : " + authorEntity.getAuthorId() + " for : " + entity.getAuthorName());
+        }
+    }
+
+    private void findAndSetFlibustaAuthorWithTranslation(AuthorBorndateEntity entity) {
+        String translatedName = translateName(entity.getAuthorName());
+        String[] split = translatedName.split(" ");
+        List<AuthorEntity> result;
+        if (split.length == 1) {
+            String lastName = split[0].toLowerCase();
+            result = authorRepository.getByLastName(lastName);
+        } else if (split.length == 2) {
+            String firstName = split[0].toLowerCase();
+            String lastName = split[1].toLowerCase();
+            result = authorRepository.getByLastAndFistName(lastName,firstName);
+        } else {
+            String firstName = split[0].toLowerCase();
+            String lastName = split[split.length - 1].toLowerCase();
+            result = authorRepository.getByLastAndFistName(lastName,firstName);
+        }
+        System.out.println("Found : " + result.size() + " results for : " + entity.getAuthorName());
+        if (CollectionUtils.isEmpty(result)) {
+            System.err.println("Not found authors for : " + entity.getAuthorName());
+        } else {
+            AuthorEntity authorEntity = result.get(0);
+            entity.setNeurolibAuthorId((long)authorEntity.getAuthorId());
+            System.out.println("Selected " + authorEntity.getLastName()
+                    + " with id : " + authorEntity.getAuthorId() + " for : " + entity.getAuthorName());
+        }
+    }
+
+    private List<String> findSynonyms(String name){
+        SynonymNameEntity nameEntity = synonymNameRepository.findFirstByNameEquals(name);
+        List<String> synonymList;
+        if(nameEntity==null){
+            synonymList = new ArrayList<>();
+            synonymList.add(name);
+        }else{
+            List<SynonymNameEntity> nameEntities = synonymNameRepository.findAllByNameId(nameEntity.getNameId());
+            synonymList = nameEntities.stream().map(synonymNameEntity -> {return synonymNameEntity.getName();}).collect(Collectors.toList());
+        }
+        return synonymList;
     }
 
     private String loadSynonymNames(){
@@ -220,5 +292,34 @@ public class CalendarCrawler {
         return name.replace(" ","");
     }
 
+    public void remapWithSynonyms(){
+        List<AuthorBorndateEntity> entities = repository.findAllByNeurolibAuthorIdIsNull();
+        for (AuthorBorndateEntity entity:entities){
+            findAndSetFlibustaAuthorWithSynonym(entity);
+            repository.save(entity);
+        }
+    }
+
+    public void remapWithTranslate(){
+        List<AuthorBorndateEntity> entities = repository.findAllByNeurolibAuthorIdIsNull();
+        for (AuthorBorndateEntity entity:entities){
+            findAndSetFlibustaAuthorWithTranslation(entity);
+            repository.save(entity);
+        }
+    }
+
+
+
+    private String translateName(String name){
+        List<NameValuePair> params = new ArrayList<NameValuePair>();
+        params.add(new BasicNameValuePair("q", name));
+        params.add(new BasicNameValuePair("target", "en"));
+        params.add(new BasicNameValuePair("source", "ru"));
+        params.add(new BasicNameValuePair("format", "text"));
+        params.add(new BasicNameValuePair("key", "AIzaSyAjLb5mCuEGckU_shCm-d4wlYvZZbZ1PuQ"));
+        String result = RequestHelper.executePostRequestAndGetResultGoogle("https://translation.googleapis.com/language/translate/v2",params);
+
+        return result.split("\"translatedText\": \"")[1].split("\"")[0];
+    }
 
 }
