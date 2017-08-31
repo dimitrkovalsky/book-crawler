@@ -10,7 +10,7 @@ import javax.persistence.*;
  * Time: 21:29
  */
 @Entity
-@Table(name = "libapics", schema = "flibusta")
+@Table(name = "libapics", schema = "neurolib")
 @Data
 public class AuthorImageEntity {
     @Id
